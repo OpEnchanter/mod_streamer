@@ -1,12 +1,16 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import filedialog
-import wget, os, json, shutil, zipfile, string
+import wget, os, json, shutil, zipfile, string, configparser
 from colorama import Fore, Style, init
+from ttkthemes import ThemedStyle
 init(autoreset=True)
 
 user = os.getlogin()
 
 drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+
+launcherInstances = {}
 
 print(Fore.BLUE + "Searching for viable curseforge installations.")
 
@@ -21,19 +25,66 @@ for drive in drives:
 
 print(Fore.BLUE + "Searching for viable curseforge instances.")
 
-curseforgeInstances = {}
 for path in curseforgePaths:
     for instance in os.listdir(path):
-        curseforgeInstances[f"CurseForge: {instance}"] = f"{path}\{instance}/mods".replace("\\", "/")
+        launcherInstances[f"CurseForge: {instance}"] = f"{path}\{instance}/mods".replace("\\", "/")
 
-if curseforgeInstances != []:
-    print(Fore.GREEN + "curseforge instances found, " + " ".join(curseforgeInstances))
+
+print(Fore.BLUE + "Searching for viable prism installations.")
+
+prismPaths = []
+for drive in drives:
+    path = f"{drive}Users\{user}\AppData\Roaming\PrismLauncher\instances"
+    if os.path.exists(path):
+        print(Fore.GREEN + f"Found viable prism path! '{path}'")
+        prismPaths.append(path)
+    else:
+        print(Fore.YELLOW + f"No viable prism path found on drive {drive}")
+
+print(Fore.BLUE + "Searching for viable prism instances.")
+
+for path in prismPaths:
+    for instance in os.listdir(path):
+        if not os.path.isfile(f"{path}\{instance}"):
+            if "instance.cfg" in os.listdir(f"{path}\{instance}"):
+                instanceConfig = configparser.ConfigParser()
+                with open(f"{path}\{instance}/instance.cfg") as f:
+                    configText = "[settings]\n"+f.read()
+                instanceConfig.read_string(configText)
+                instanceName = instanceConfig["settings"]["name"]
+                launcherInstances[f"Prism: {instanceName}"] = f"{path}\{instance}/.minecraft/mods".replace("\\", "/")
+
+print(Fore.BLUE + "Searching for viable Minecraft Launcher installations.")
+
+minecraftLauncherPaths = []
+for drive in drives:
+    path = f"{drive}Users\{user}\AppData\Roaming\.minecraft\mods"
+    if os.path.exists(path):
+        print(Fore.GREEN + f"Found viable Minecraft Launcher path! '{path}'")
+        minecraftLauncherPaths.append(path)
+    else:
+        print(Fore.YELLOW + f"No viable Minecraft Launcher path found on drive {drive}")
+
+for path in minecraftLauncherPaths:
+    launcherInstances["Minecraft Launcher"] = path.replace("\\", "/")
+
+if launcherInstances != {}:
+    print(Fore.GREEN + "Game instances found: " + " ".join(launcherInstances))
 else:
-    print(Fore.YELLOW + "No curseforge instances found")
+    print(Fore.YELLOW + "No game instances found")
+
+instanceOptions = []
+for instance in launcherInstances.keys():
+    instanceOptions.append(instance)
+if instanceOptions == []:
+    instanceOptions.append(" ")
 
 win = tk.Tk()
 win.geometry("250x250")
-win.title("Modpack Downloader")
+win.title("Mod Manager")
+
+style = ThemedStyle(win)
+style.theme_use("arc")
 
 config = {}
 with open("config.json", "r") as configFile:
@@ -57,11 +108,11 @@ def downloadMods():
 
             os.unlink(config["path"]+"/"+config["modpack_aliases"][config["modpack"]])
 
-            outputDialog.config(text="Modpack download successful", fg="green")
+            outputDialog.config(text="Modpack download successful", foreground="green")
         else:
-            outputDialog.config(text="Please select a modpack", fg="red")
+            outputDialog.config(text="Please select a modpack", foreground="red")
     else:
-        outputDialog.config(text="Please set a mods folder", fg="red")
+        outputDialog.config(text="Please set a mods folder", foreground="red")
 
 def updateDownloadDirectory():
     config["path"]  = filedialog.askdirectory()
@@ -70,24 +121,24 @@ def updateDownloadDirectory():
         json.dump(config, configFile)
 
     if config["path"] != "":
-        if not config["path"] in curseforgeInstances.values():
+        if not config["path"] in launcherInstances.values():
             instanceSelector.destroy()
     
-    outputDialog.config(text="Config update successful", fg="green")
+    outputDialog.config(text="Config update successful", foreground="green")
 
-def changeServer(value):
-    config["modpack"] = value
+def changeModpack(args):
+    config["modpack"] = modpackSelector.get()
 
     with open("config.json", "w") as configFile:
         json.dump(config, configFile)
 
-def selectDownloadDirectory(value):
-    config["path"] = curseforgeInstances[value]
+def selectDownloadDirectory(args):
+    config["path"] = launcherInstances[instanceSelector.get()]
 
     with open("config.json", "w") as configFile:
         json.dump(config, configFile)
     
-    outputDialog.config(text="Config update successful", fg="green")
+    outputDialog.config(text="Config update successful", foreground="green")
 
 def resetConfig():
     config["path"] = ""
@@ -97,56 +148,55 @@ def resetConfig():
         json.dump(config, configFile)
 
     if config["path"] == "":
-        if curseforgeInstances == []:
-            selectedInstance.set("No instances available")
+        if launcherInstances == []:
+            instanceSelector.set("No instances available")
         else:
-            selectedInstance.set("Select a Minecraft instance")
+            instanceSelector.set("Select a Minecraft Instance")
     else:
-        if config["path"] in curseforgeInstances.values():
-            selectedInstance.set(list(curseforgeInstances.keys())[list(curseforgeInstances.values()).index(config["path"])])
+        if config["path"] in launcherInstances.values():
+            instanceSelector.set(list(launcherInstances.keys())[list(launcherInstances.values()).index(config["path"])])
 
     if config["modpack"] == "":
-        selectedServer.set("Select a server")
+        modpackSelector.set("Select a Modpack")
     else:
-        selectedServer.set(config["modpack"])
+        modpackSelector.set(config["modpack"])
 
-selectedServer = tk.StringVar()
+modpacks = list(config["modpack_aliases"].keys())
+
+modpackSelector = ttk.Combobox(win, values=modpacks, state="readonly")
+modpackSelector.bind("<<ComboboxSelected>>", changeModpack)
 if config["modpack"] == "":
-    selectedServer.set("Select a server")
+    modpackSelector.set("Select a Modpack")
 else:
-    selectedServer.set(config["modpack"])
+    modpackSelector.set(config["modpack"])
+modpackSelector.pack(pady=2)
 
-modpacks = config["modpack_aliases"].keys()
+downloadButton = ttk.Button(win, text="Download Mods", command=downloadMods)
+downloadButton.pack(pady=2)
 
-serverSelector = tk.OptionMenu(win, selectedServer, *modpacks, command=changeServer)
-serverSelector.pack()
+updateDirectoryButton = ttk.Button(win, text="Set Custom Mods Folder", command=updateDownloadDirectory)
+updateDirectoryButton.pack(pady=2)
 
-downloadButton = tk.Button(win, text="Download Mods", command=downloadMods)
-downloadButton.pack()
+instanceSelector = ttk.Combobox(win, values=instanceOptions, state="readonly")
+instanceSelector.bind("<<ComboboxSelected>>", selectDownloadDirectory)
 
-updateDirectoryButton = tk.Button(win, text="Set Custom Mods Folder", command=updateDownloadDirectory)
-updateDirectoryButton.pack()
-
-selectedInstance = tk.StringVar()
 if config["path"] == "":
-    if curseforgeInstances == []:
-        selectedInstance.set("No instances available")
+    if launcherInstances == {}:
+        instanceSelector.set("No instances available")
     else:
-        selectedInstance.set("Select a Minecraft instance")
+        instanceSelector.set("Select a Minecraft Instance")
 else:
-    if config["path"] in curseforgeInstances.values():
-        selectedInstance.set(list(curseforgeInstances.keys())[list(curseforgeInstances.values()).index(config["path"])])
+    if config["path"] in launcherInstances.values():
+        instanceSelector.set(list(launcherInstances.keys())[list(launcherInstances.values()).index(config["path"])])
 
-instanceSelector = tk.OptionMenu(win, selectedInstance, *curseforgeInstances.keys(), command=selectDownloadDirectory)
-
-if curseforgeInstances != []:
-    if config["path"] == "" or config["path"] in curseforgeInstances.values():
+if launcherInstances != {}:
+    if config["path"] == "" or config["path"] in launcherInstances.values():
         instanceSelector.pack()
 
-resetConfigButton = tk.Button(win, text="Reset Config", command=resetConfig)
-resetConfigButton.pack()
+resetConfigButton = ttk.Button(win, text="Reset Config", command=resetConfig)
+resetConfigButton.pack(pady=2)
 
-outputDialog = tk.Label(win, text="", fg="gray")
-outputDialog.pack()
+outputDialog = ttk.Label(win, text="", foreground="grey")
+outputDialog.pack(pady=2)
 
 win.mainloop()
