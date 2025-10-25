@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
-import wget, os, json, shutil, zipfile, string, configparser
+import wget, os, json, shutil, zipfile, string, configparser, subprocess, sys
 from colorama import Fore, Style, init
 from ttkthemes import ThemedStyle
 import requests
@@ -13,12 +13,20 @@ with open("config.json", "r+") as configFile:
 
 # Update Config
 print(Fore.BLUE + "Updating Config")
-downloadedConfig = requests.get(config["mirror_url"]+"/api/updateConfig").json()
+try:
+    downloadedConfig = requests.get(config["mirror_url"]+"/modm-api/updateConfig").json()
 
-for updatedItm in downloadedConfig.keys():
-    config[updatedItm] = downloadedConfig[updatedItm]
+    for updatedItm in downloadedConfig.keys():
+        config[updatedItm] = downloadedConfig[updatedItm]
 
-print(Fore.GREEN + "Updated Config!")
+    with open("config.json", "w") as f:
+        json.dump(config, f)
+
+    print(Fore.GREEN + "Updated Config!")
+except:
+    print(Fore.YELLOW + "Could not download latest config")
+
+# Check for update
 
 user = os.getlogin()
 
@@ -26,6 +34,7 @@ drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")
 
 launcherInstances = {}
 
+# Find prism launcher instances
 print(Fore.BLUE + "Searching for viable curseforge installations.")
 
 curseforgePaths = []
@@ -43,7 +52,7 @@ for path in curseforgePaths:
     for instance in os.listdir(path):
         launcherInstances[f"CurseForge: {instance}"] = f"{path}\{instance}/mods".replace("\\", "/")
 
-
+# Find prism launcher instances
 print(Fore.BLUE + "Searching for viable prism installations.")
 
 prismPaths = []
@@ -71,6 +80,7 @@ for path in prismPaths:
                 except:
                     print(Fore.RED + "Failed to read Prism Launcher instance config file (This message does not indicate any fatal error do not report this to the program's developer)")
 
+# Find modrinth instances
 print(Fore.BLUE + "Searching for viable modrinth installations.")
 
 modrinthPaths = []
@@ -111,7 +121,7 @@ for path in minecraftLauncherPaths:
     launcherInstances["Minecraft Launcher"] = path.replace("\\", "/")
 
 if launcherInstances != {}:
-    print(Fore.GREEN + "Game instances found: " + " ".join(launcherInstances))
+    print(Fore.GREEN + "Game instances found: " + ", ".join(launcherInstances))
 else:
     print(Fore.YELLOW + "No game instances found")
 
@@ -124,6 +134,34 @@ if instanceOptions == []:
 win = tk.Tk()
 win.geometry("250x250")
 win.title("Mod Manager")
+
+def update():
+    config["app_version"] = int(requests.get(config["mirror_url"]+"/modm-api/version").json())
+    with open("config.json", "w") as f:
+        json.dump(config, f)
+    wget.download(config["mirror_url"] + "/modm-api/downloadApp", "main.exe.new")
+    subprocess.Popen(["start", "cmd", "/k", "updater.exe"], shell=True)
+    sys.exit()
+
+
+try:
+    latestVer = int(requests.get(config["mirror_url"]+"/modm-api/version").json())
+    if (config["app_version"] < latestVer):
+        updateWin = tk.Toplevel(win)
+        updateWin.title("Update Available")
+        updateWin.geometry("150x150")
+
+        updateText = ttk.Label(updateWin, text="Update Available", foreground="green")
+
+        updateText.pack()
+
+        updateButton = ttk.Button(updateWin, text="Download Update", command=update)
+        updateButton.pack()
+    else:
+        print(Fore.GREEN + "App up to date!")
+except Exception as e:
+    print(Fore.YELLOW + "Could not check for app update")
+    print(e)
 
 style = ThemedStyle(win)
 style.theme_use("arc")
@@ -139,12 +177,12 @@ def downloadMods():
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
 
-            wget.download(config["mirror_url"]+"/static/"+config["modpack_aliases"][config["modpack"]], config["path"])
+            wget.download(config["mirror_url"]+"/"+config["modpack_aliases"][config["modpack"]]["downloadPath"], config["path"])
             
-            with zipfile.ZipFile(config["path"]+"/"+config["modpack_aliases"][config["modpack"]], 'r') as zip:
+            with zipfile.ZipFile(config["path"]+"/"+config["modpack_aliases"][config["modpack"]]["filename"], 'r') as zip:
                 zip.extractall(config["path"])
 
-            os.unlink(config["path"]+"/"+config["modpack_aliases"][config["modpack"]])
+            os.unlink(config["path"]+"/"+config["modpack_aliases"][config["modpack"]]["filename"])
 
             outputDialog.config(text="Modpack download successful", foreground="green")
         else:
