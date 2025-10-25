@@ -4,7 +4,21 @@ from tkinter import filedialog
 import wget, os, json, shutil, zipfile, string, configparser
 from colorama import Fore, Style, init
 from ttkthemes import ThemedStyle
+import requests
 init(autoreset=True)
+
+config = {}
+with open("config.json", "r+") as configFile:
+    config = json.load(configFile)
+
+# Update Config
+print(Fore.BLUE + "Updating Config")
+downloadedConfig = requests.get(config["mirror_url"]+"/api/updateConfig").json()
+
+for updatedItm in downloadedConfig.keys():
+    config[updatedItm] = downloadedConfig[updatedItm]
+
+print(Fore.GREEN + "Updated Config!")
 
 user = os.getlogin()
 
@@ -47,12 +61,40 @@ for path in prismPaths:
     for instance in os.listdir(path):
         if not os.path.isfile(f"{path}\{instance}"):
             if "instance.cfg" in os.listdir(f"{path}\{instance}"):
-                instanceConfig = configparser.ConfigParser()
-                with open(f"{path}\{instance}/instance.cfg") as f:
-                    configText = "[settings]\n"+f.read()
-                instanceConfig.read_string(configText)
-                instanceName = instanceConfig["settings"]["name"]
-                launcherInstances[f"Prism: {instanceName}"] = f"{path}\{instance}/.minecraft/mods".replace("\\", "/")
+                try:
+                    instanceConfig = configparser.ConfigParser()
+                    with open(f"{path}\{instance}/instance.cfg") as f:
+                        configText = "[settings]\n"+f.read()
+                    instanceConfig.read_string(configText)
+                    instanceName = instanceConfig["settings"]["name"]
+                    launcherInstances[f"Prism: {instanceName}"] = f"{path}\{instance}/.minecraft/mods".replace("\\", "/")
+                except:
+                    print(Fore.RED + "Failed to read Prism Launcher instance config file (This message does not indicate any fatal error do not report this to the program's developer)")
+
+print(Fore.BLUE + "Searching for viable modrinth installations.")
+
+modrinthPaths = []
+for drive in drives:
+    path = f"{drive}Users\{user}\AppData\Roaming\com.modrinth.theseus\profiles"
+    if os.path.exists(path):
+        print(Fore.GREEN + f"Found viable modrinth path! '{path}'")
+        modrinthPaths.append(path)
+    else:
+        print(Fore.YELLOW + f"No viable modrinth path found on drive {drive}")
+
+print(Fore.BLUE + "Searching for viable modrinth instances.")
+
+for path in modrinthPaths:
+    for instance in os.listdir(path):
+        if not os.path.isfile(f"{path}\{instance}"):
+            if "profile.json" in os.listdir(f"{path}\{instance}"):
+                try:
+                    with open(f"{path}\{instance}/profile.json") as cfg:
+                        instanceConfig = json.load(cfg)
+                    instanceName = instanceConfig["metadata"]["name"]
+                    launcherInstances[f"Modrinth: {instanceName}"] = f"{path}\{instance}/mods".replace("\\", "/")
+                except:
+                    print(Fore.RED + "Failed to read Modrinth Launcher instance config file (This message does not indicate any fatal error do not report this to the program's developer)")
 
 print(Fore.BLUE + "Searching for viable Minecraft Launcher installations.")
 
@@ -86,10 +128,6 @@ win.title("Mod Manager")
 style = ThemedStyle(win)
 style.theme_use("arc")
 
-config = {}
-with open("config.json", "r") as configFile:
-    config = json.load(configFile)
-
 def downloadMods():
 
     if config["path"] != "":
@@ -101,7 +139,7 @@ def downloadMods():
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
 
-            wget.download(config["mirror_url"]+config["modpack_aliases"][config["modpack"]], config["path"])
+            wget.download(config["mirror_url"]+"/static/"+config["modpack_aliases"][config["modpack"]], config["path"])
             
             with zipfile.ZipFile(config["path"]+"/"+config["modpack_aliases"][config["modpack"]], 'r') as zip:
                 zip.extractall(config["path"])
