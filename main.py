@@ -85,7 +85,7 @@ print(Fore.BLUE + "Searching for viable modrinth installations.")
 
 modrinthPaths = []
 for drive in drives:
-    path = f"{drive}Users\{user}\AppData\Roaming\com.modrinth.theseus\profiles"
+    path = f"{drive}Users\{user}\AppData\Roaming\ModrinthApp\profiles"
     if os.path.exists(path):
         print(Fore.GREEN + f"Found viable modrinth path! '{path}'")
         modrinthPaths.append(path)
@@ -96,15 +96,7 @@ print(Fore.BLUE + "Searching for viable modrinth instances.")
 
 for path in modrinthPaths:
     for instance in os.listdir(path):
-        if not os.path.isfile(f"{path}\{instance}"):
-            if "profile.json" in os.listdir(f"{path}\{instance}"):
-                try:
-                    with open(f"{path}\{instance}/profile.json") as cfg:
-                        instanceConfig = json.load(cfg)
-                    instanceName = instanceConfig["metadata"]["name"]
-                    launcherInstances[f"Modrinth: {instanceName}"] = f"{path}\{instance}/mods".replace("\\", "/")
-                except:
-                    print(Fore.RED + "Failed to read Modrinth Launcher instance config file (This message does not indicate any fatal error do not report this to the program's developer)")
+        launcherInstances[f"Modrinth: {instance}"] = f"{path}\{instance}/mods".replace("\\", "/")
 
 print(Fore.BLUE + "Searching for viable Minecraft Launcher installations.")
 
