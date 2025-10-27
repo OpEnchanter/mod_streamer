@@ -1,10 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
-import wget, os, json, shutil, zipfile, string, configparser, subprocess, sys
+import wget, os, json, shutil, zipfile, string, configparser, subprocess, sys, requests, psutil
 from colorama import Fore, Style, init
 from ttkthemes import ThemedStyle
-import requests
 init(autoreset=True)
 
 config = {}
@@ -14,7 +13,7 @@ with open("config.json", "r+") as configFile:
 # Update Config
 print(Fore.BLUE + "Updating Config")
 try:
-    downloadedConfig = requests.get(config["mirror_url"]+"/modm-api/updateConfig").json()
+    downloadedConfig = requests.get(config["mirror_url"]+"/modm-api/getConfig").json()
 
     for updatedItm in downloadedConfig.keys():
         config[updatedItm] = downloadedConfig[updatedItm]
@@ -23,10 +22,16 @@ try:
         json.dump(config, f)
 
     print(Fore.GREEN + "Updated Config!")
-except:
-    print(Fore.YELLOW + "Could not download latest config")
+except Exception as e:
+    print(Fore.YELLOW + f"Could not download latest config\n{e}")
 
-# Check for update
+# Close all launchers
+procNames = ["Modrinth App.exe"]
+for proc in psutil.process_iter(['pid', 'name']):
+    if proc.info['name'] in procNames:
+        print(f"{proc.info['name']} is running!")
+        proc.terminate()
+        proc.wait()
 
 user = os.getlogin()
 
