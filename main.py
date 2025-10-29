@@ -25,14 +25,6 @@ try:
 except Exception as e:
     print(Fore.YELLOW + f"Could not download latest config\n{e}")
 
-# Close all launchers
-procNames = ["Modrinth App.exe"]
-for proc in psutil.process_iter(['pid', 'name']):
-    if proc.info['name'] in procNames:
-        print(f"{proc.info['name']} is running!")
-        proc.terminate()
-        proc.wait()
-
 user = os.getlogin()
 
 drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
@@ -164,6 +156,15 @@ style = ThemedStyle(win)
 style.theme_use("arc")
 
 def downloadMods():
+
+    # Close all launchers
+    print(Fore.BLUE + "Closing modded launchers")
+    procNames = ["Modrinth App.exe", "CurseForge.exe"]
+    for proc in psutil.process_iter(['pid', 'name']):
+        if proc.info['name'] in procNames:
+            print(Fore.BLUE + f"{proc.info['name']} is running; closing!")
+            proc.terminate()
+            proc.wait()
 
     if config["path"] != "":
         if config["modpack"] != "":
